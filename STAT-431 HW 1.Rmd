@@ -1,0 +1,122 @@
+---
+title: "STAT-431 HW 1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+set.seed(15)
+```
+
+## Lab 1: Review of Statistical Computing with R
+### Part One: Checking Normality (150 pts)
+In this section, you will use a Q-Q Plot to check if a vector of values x comes from a Normal distribution.
+The approach is to randomly generate a new vector y from a Normal distribution with the same mean and standard deviation as x, then to create a Q-Q plot of x and y. (Note: A typical Normal Q-Q plot uses theoretical quantiles instead of randomly generated values. We're taking a bit of a shortcut in this assignment.)
+
+Your final function should take as input a numeric vector.
+
+It should return (not just print!) a Q-Q Plot comparing your input to Normally distributed values.
+
+You may not use any existing functions specific to Q-Q plots; including (but not limited to) qqplot(), geom_qq, or stat_qq.
+
+Demonstrate that your function works by running it on either real data of your choice, or on a non-Normal vector that you create.
+
+
+```{r QQPlot Function}
+qqplot <- function(x){
+  # Generate normal vector y
+  y <- rnorm(length(x), mean = mean(x), sd = sd(x))
+  
+  # Get Proper Order of x, y
+  x_order <- order(x)
+  y_order <- order(y)
+  
+  # Use Above to Order X, Y
+  ordered_x <- x[x_order]
+  ordered_y <- y[y_order]
+  
+  # Create Plot
+  p <- plot(ordered_x, ordered_y, xlab = 'x', ylab = 'y', main = 'QQPlot')
+  return(p)
+}
+```
+
+I test the plot above with one normal vector and another non-normal vector:
+```{r Normal Vector}
+x <- rnorm(200, 5, 0.5)
+qqplot(x)
+```
+
+```{r Non-Normal Vector}
+x <- sample(seq(1, 20, 0.001), 200, replace = T)
+qqplot(x)
+```
+
+
+### Part Two: Data Analysis (150 points)
+Use the dataset `Oscars-demographics-DFE.csv` in this repository.
+
+```{r Reading Data}
+oscars <- read_csv('https://raw.githubusercontent.com/Cal-Poly-Advanced-R/Lab_1/master/Oscars-demographics-DFE.csv')
+```
+
+
+In what follows, the phrase "Big 5 Awards" refers to the five individual Academy Awards covered in this dataset: Best Director, Best Actor, Best Actress, Best Supporting Actor, and Best Supporting Actress.
+
+#### Warm-ups (10 points each)
+Which movie(s) won the most unique "Big 5" awards?
+
+```{r Most Awards}
+oscars %>% 
+  filter(`_golden` == T) %>% #won the award
+  distinct(movie, award, year_of_award) %>% #unique movie-year-award
+  group_by(movie) %>%
+  count() %>%
+  arrange(desc(n))
+```
+
+
+Of all actresses who have won the Best Actress award, what are is the most common first name?
+
+```{r Most Common Best ACtress First Name}
+oscars %>% 
+  filter(`_golden` == T & award == 'Best Actress') %>% #won the award for Best Actress
+  distinct(person, year_of_award) %>% #unique best-actress / year
+  mutate(first_name = str_split(person, ' ') %>% map(1) %>% unlist()) %>% #get first name
+  group_by(first_name) %>%
+  count()
+```
+
+What US State, or non-US country, has produced the most Oscar winners (for the awards in this dataset)?
+
+```{r Most Oscar Winners}
+oscars %>% 
+  filter(`_golden` == T & award == 'Best Actress') %>% #won the award for Best Actress
+  distinct(person, year_of_award) %>% #unique best-actress / year
+  mutate(first_name = str_split(person, ' ') %>% map(1) %>% unlist()) %>% #get first name
+  group_by(first_name) %>%
+  count()
+```
+
+#### Age and Gender (60 points)
+The information in this dataset includes two awards given only to women (Best Actress, Best Supporting Actress) and two awards given only to men (Best Actor, Best Supporting Actor).
+
+Create a linear model that explores how the typical age of acting award winners has changed over time, and how that effect is different for the two genders of awards.
+
+(Note: You will absolutely need to do some careful manipulation of the date information in this dataset, before you create your model. You may assume all Oscar awards take place on Feb 1 of the year they are awarded.)
+
+Print out the results of your model, and briefly discuss the interpretations and conclusions.
+
+Bootstrapping (60 points)
+Use a bootstrap approach to answer the following question:
+What is an approximate 95% confidence interval for percent of "Big 5 Award" award winners who are not white?
+
+In addition to the confidence interval, make a plot that illustrates your findings.
+
+
+
+
+
