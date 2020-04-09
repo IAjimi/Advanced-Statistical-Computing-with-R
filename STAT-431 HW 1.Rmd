@@ -6,8 +6,11 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
+## Loading Libraries
+library(scales)
 library(tidyverse)
 
+## Set Seed
 set.seed(15)
 ```
 
@@ -71,11 +74,12 @@ Which movie(s) won the most unique "Big 5" awards?
 
 ```{r Most Awards}
 oscars %>% 
-  filter(`_golden` == T) %>% #won the award
   distinct(movie, award, year_of_award) %>% #unique movie-year-award
   group_by(movie) %>%
   count() %>%
-  arrange(desc(n))
+  arrange(desc(n)) %>%
+  ungroup() %>%
+  top_n(1)
 ```
 
 
@@ -83,38 +87,100 @@ Of all actresses who have won the Best Actress award, what are is the most commo
 
 ```{r Most Common Best ACtress First Name}
 oscars %>% 
-  filter(`_golden` == T & award == 'Best Actress') %>% #won the award for Best Actress
-  distinct(person, year_of_award) %>% #unique best-actress / year
+  filter(award == 'Best Actress') %>% #won the award for Best Actress
+  distinct(person) %>% #unique best-actress
   mutate(first_name = str_split(person, ' ') %>% map(1) %>% unlist()) %>% #get first name
   group_by(first_name) %>%
-  count()
+  count() %>%
+  arrange(desc(n)) %>%
+  head()
 ```
 
 What US State, or non-US country, has produced the most Oscar winners (for the awards in this dataset)?
 
 ```{r Most Oscar Winners}
 oscars %>% 
-  filter(`_golden` == T & award == 'Best Actress') %>% #won the award for Best Actress
-  distinct(person, year_of_award) %>% #unique best-actress / year
-  mutate(first_name = str_split(person, ' ') %>% map(1) %>% unlist()) %>% #get first name
-  group_by(first_name) %>%
-  count()
+  filter(!is.na(birthplace)) %>%
+  mutate(
+    birthplace = if_else(birthplace == 'New York City', 'Ny', birthplace),
+    birthplace = birthplace %>% str_split(', ') %>% map(last) %>% unlist()
+         ) %>% #get first name
+  distinct(birthplace, year_of_award) %>%
+  group_by(birthplace) %>%
+  count() %>% 
+  arrange(desc(n))
 ```
+
+It seems like New York has the most Oscar winners.
 
 #### Age and Gender (60 points)
 The information in this dataset includes two awards given only to women (Best Actress, Best Supporting Actress) and two awards given only to men (Best Actor, Best Supporting Actor).
 
 Create a linear model that explores how the typical age of acting award winners has changed over time, and how that effect is different for the two genders of awards.
 
-(Note: You will absolutely need to do some careful manipulation of the date information in this dataset, before you create your model. You may assume all Oscar awards take place on Feb 1 of the year they are awarded.)
+```{r}
+reg_df <- oscars %>%
+  filter(award %in% c('Best Actress', 'Best Supporting Actress', 'Best Actor', 'Best Supporting Actor')) %>%
+  mutate(gender = if_else(award %in% c('Best Actress', 'Best Supporting Actress'), 'F', 'M'),
+         age = as.numeric(str_extract(date_of_birth, '....$')),
+         age = year_of_award - age) %>%
+    select(date_of_birth, race_ethnicity, year_of_award, award, gender, age) 
 
-Print out the results of your model, and briefly discuss the interpretations and conclusions.
+reg <- lm(age ~ award + race_ethnicity + age*gender*year_of_award, data = reg_df)
+summary(reg)
+```
 
-Bootstrapping (60 points)
+Overall, there is a positive relationship between age, time, and the likelihood of winning an award. This effect is *stronger* for men. However, the strenght of this effect has decreased over time.
+
+
+
+#### Bootstrapping (60 points)
 Use a bootstrap approach to answer the following question:
 What is an approximate 95% confidence interval for percent of "Big 5 Award" award winners who are not white?
 
+```{r}
+# Get Race
+race <- oscars$race_ethnicity
+
+# Code Race as White / Non White
+race[race == 'White'] <- 0
+race[race != 0] <- 1
+race <- as.numeric(race)
+
+# Bootstrap
+n <- 1000 #number of times to repeat
+per_nonwhite <- rep(NA, n)
+
+for (i in c(1:1000)){
+  new_sample <- sample(race, length(race), replace = T)
+  per_nonwhite[i] <- mean(new_sample)
+}
+
+bootstrapped_ci <- data.frame(
+  'bottom_range' = quantile(per_nonwhite, 0.025),
+  'top_range' = quantile(per_nonwhite, 0.975),
+  'median_range' = median(per_nonwhite)
+)
+
+bootstrapped_ci
+```
+
+
 In addition to the confidence interval, make a plot that illustrates your findings.
+
+```{r}
+graph_breaks <- c(bootstrapped_ci$bottom_range, bootstrapped_ci$top_range, bootstrapped_ci$median_range)
+
+data.frame('per_nonwhite' = per_nonwhite ) %>%
+  ggplot(aes(per_nonwhite)) + 
+  geom_vline(aes(xintercept = quantile(per_nonwhite, 0.025)), linetype = 'dashed') +
+  geom_vline(aes(xintercept = quantile(per_nonwhite, 0.975)), linetype = 'dashed') +
+  geom_vline(aes(xintercept = median(per_nonwhite))) +
+  geom_histogram(binwidth = 0.0025, color = 'white') +
+  scale_x_continuous(labels = percent, breaks = graph_breaks) +
+  labs(x = 'Estimated % Non-White Award Winners', y = 'Count') +
+  theme_minimal()
+```
 
 
 
